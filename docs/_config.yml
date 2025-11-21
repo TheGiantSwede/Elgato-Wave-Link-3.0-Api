@@ -1,0 +1,12 @@
+title: Wave Link 3.0 API
+description: Simple reference for Elgato Wave Link 3.0 integration
+theme: jekyll-theme-minimal
+show_downloads: false
+
+# GitHub Pages settings
+github:
+  is_project_page: false
+  is_user_page: false
+
+# Markdown processor
+markdown: kramdown
