@@ -27,16 +27,17 @@ const WebSocket = require('ws');
 const ws = new WebSocket('ws://127.0.0.1:1884');
 
 ws.on('open', () => {
-  // Set Music to 50% in Personal Mix
+  // Set a channel to 50% in a mix
+  // Replace channelId and mixId with your actual IDs from getChannels()
   ws.send(JSON.stringify({
     id: 1,
     jsonrpc: '2.0',
     method: 'setChannel',
     params: {
-      id: 'PCM_OUT_00_V_06_SD4',      // Music
+      id: 'YOUR_CHANNEL_ID',     // e.g., "PCM_OUT_00_V_06_SD4"
       mixes: [{
-        id: 'PCM_IN_01_V_00_SD1',      // Personal Mix
-        level: 0.5                      // 50%
+        id: 'YOUR_MIX_ID',         // e.g., "PCM_IN_01_V_00_SD1"
+        level: 0.5                 // 50%
       }]
     }
   }));
@@ -48,24 +49,46 @@ ws.on('message', () => {
 });
 ```
 
-## Channel IDs (Audio Sources)
+## Get Your Channel & Mix IDs
 
-| Name | ID |
-|------|-----|
-| **Game** | `PCM_OUT_00_V_08_SD5` |
-| **Music** | `PCM_OUT_00_V_06_SD4` |
-| **Voice/Discord** | `PCM_OUT_00_V_02_SD2` |
-| **Browser** | `PCM_OUT_00_V_04_SD3` |
-| **Microphone** | `PCM_IN_01_C_00_SD1` |
+IDs are different on every PC. Discover them dynamically:
 
-## Mix IDs (Audio Destinations)
+```javascript
+const WebSocket = require('ws');
 
-| Name | ID | Purpose |
-|------|-----|---------|
-| **Personal Mix** | `PCM_IN_01_V_00_SD1` | What you hear (headphones) |
-| **Stream Mix** | `PCM_IN_01_V_04_SD3` | What viewers see |
-| **Chat Mix** | `PCM_IN_01_V_02_SD2` | Chat channel only |
-| **Record Mix** | `PCM_IN_01_V_06_SD4` | Recording output |
+const ws = new WebSocket('ws://127.0.0.1:1884');
+
+ws.on('open', () => {
+  ws.send(JSON.stringify({
+    id: 1,
+    jsonrpc: '2.0',
+    method: 'getChannels',
+    params: {}
+  }));
+});
+
+ws.on('message', (data) => {
+  const response = JSON.parse(data);
+
+  console.log('Channels:');
+  response.result.forEach(ch => {
+    console.log(`  ${ch.name}: ${ch.id}`);
+  });
+
+  ws.close();
+});
+```
+
+Then get mixes:
+
+```javascript
+ws.send(JSON.stringify({
+  id: 2,
+  jsonrpc: '2.0',
+  method: 'getMixes',
+  params: {}
+}));
+```
 
 ## API Methods
 
@@ -86,9 +109,9 @@ ws.on('message', () => {
   "jsonrpc": "2.0",
   "method": "setChannel",
   "params": {
-    "id": "PCM_OUT_00_V_06_SD4",
+    "id": "YOUR_CHANNEL_ID",
     "mixes": [{
-      "id": "PCM_IN_01_V_00_SD1",
+      "id": "YOUR_MIX_ID",
       "level": 0.5
     }]
   }
@@ -102,9 +125,9 @@ ws.on('message', () => {
   "jsonrpc": "2.0",
   "method": "setChannel",
   "params": {
-    "id": "PCM_OUT_00_V_08_SD5",
+    "id": "YOUR_CHANNEL_ID",
     "mixes": [{
-      "id": "PCM_IN_01_V_04_SD3",
+      "id": "YOUR_MIX_ID",
       "isMuted": true
     }]
   }
@@ -113,16 +136,17 @@ ws.on('message', () => {
 
 ## Common Examples
 
-### Stream Setup (Game + Music, Hide Discord)
+### Batch Set Multiple Channels
 
 ```javascript
 const ws = new WebSocket('ws://127.0.0.1:1884');
 let id = 1;
 
+// Replace with your actual IDs from getChannels() and getMixes()
 const config = [
-  { ch: 'PCM_OUT_00_V_08_SD5', mix: 'PCM_IN_01_V_04_SD3', vol: 100 }, // Game
-  { ch: 'PCM_OUT_00_V_06_SD4', mix: 'PCM_IN_01_V_04_SD3', vol: 50 },  // Music
-  { ch: 'PCM_OUT_00_V_02_SD2', mix: 'PCM_IN_01_V_04_SD3', mute: true } // Discord
+  { channel: 'YOUR_GAME_ID', mix: 'YOUR_STREAM_MIX_ID', volume: 100 },
+  { channel: 'YOUR_MUSIC_ID', mix: 'YOUR_STREAM_MIX_ID', volume: 50 },
+  { channel: 'YOUR_VOICE_ID', mix: 'YOUR_STREAM_MIX_ID', mute: true }
 ];
 
 ws.on('open', () => {
@@ -132,10 +156,10 @@ ws.on('open', () => {
       jsonrpc: '2.0',
       method: 'setChannel',
       params: {
-        id: c.ch,
+        id: c.channel,
         mixes: [{
           id: c.mix,
-          level: c.vol ? c.vol / 100 : 0,
+          level: c.volume ? c.volume / 100 : 0,
           isMuted: c.mute || false
         }]
       }
@@ -145,17 +169,21 @@ ws.on('open', () => {
 });
 ```
 
-### Meeting Mode (Discord Loud, Music Quiet)
+### Dynamic Meeting Mode
 
 ```javascript
-function setMeetingMode(isActive) {
+function setMeetingMode(isActive, voiceChannelId, musicChannelId, personalMixId) {
   const ws = new WebSocket('ws://127.0.0.1:1884');
   let id = 1;
 
   ws.on('open', () => {
+    const levels = isActive
+      ? { voice: 100, music: 0 }      // Meeting: max voice, mute music
+      : { voice: 30, music: 100 };    // Normal: quiet voice, full music
+
     const channels = [
-      { ch: 'PCM_OUT_00_V_02_SD2', vol: isActive ? 100 : 30 },  // Voice
-      { ch: 'PCM_OUT_00_V_06_SD4', vol: isActive ? 0 : 100 }    // Music
+      { id: voiceChannelId, level: levels.voice },
+      { id: musicChannelId, level: levels.music }
     ];
 
     channels.forEach(c => {
@@ -164,10 +192,10 @@ function setMeetingMode(isActive) {
         jsonrpc: '2.0',
         method: 'setChannel',
         params: {
-          id: c.ch,
+          id: c.id,
           mixes: [{
-            id: 'PCM_IN_01_V_00_SD1',
-            level: c.vol / 100
+            id: personalMixId,
+            level: c.level / 100
           }]
         }
       }));
@@ -176,7 +204,8 @@ function setMeetingMode(isActive) {
   });
 }
 
-setMeetingMode(true);
+// Usage:
+// setMeetingMode(true, voiceId, musicId, personalMixId);
 ```
 
 ## React Hook
@@ -186,6 +215,8 @@ import { useState, useRef } from 'react';
 
 export function useWaveLink() {
   const [connected, setConnected] = useState(false);
+  const [channels, setChannels] = useState([]);
+  const [mixes, setMixes] = useState([]);
   const wsRef = useRef(null);
   let msgId = 0;
 
@@ -197,6 +228,17 @@ export function useWaveLink() {
         resolve();
       };
     });
+  };
+
+  const fetchChannels = () => {
+    if (!wsRef.current) return;
+
+    wsRef.current.send(JSON.stringify({
+      id: ++msgId,
+      jsonrpc: '2.0',
+      method: 'getChannels',
+      params: {}
+    }));
   };
 
   const setVolume = (channelId, mixId, volume) => {
@@ -213,7 +255,7 @@ export function useWaveLink() {
     }));
   };
 
-  return { connected, connect, setVolume };
+  return { connected, channels, mixes, connect, fetchChannels, setVolume };
 }
 ```
 
